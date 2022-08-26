@@ -124,7 +124,7 @@ class TraceProducer:
                     lj[k,j] += d[k,i,j]
                 coflowO.append(lj[k,j])
             
-            coflowlist.append((coflowI, coflowO, self.jobs.elementAt(k)))
+            coflowlist.append([coflowI, coflowO, self.jobs.elementAt(k)])
     
         return li, lj, coflowlist
     
