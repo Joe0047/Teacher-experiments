@@ -80,20 +80,6 @@ class TraceProducer:
             
         return Si, Sj
     
-    def obtainJobWeight(self):
-        w = []
-        for i in range(self.jobs.size()):
-            w.append(self.jobs.elementAt(i).getWeight())
-        
-        return w
-    
-    def obtainJobReleaseTime(self):
-        r = []
-        for i in range(self.jobs.size()):
-            r.append(self.jobs.elementAt(i).getReleaseTime())
-        
-        return r
-    
     def produceCoflowSizeAndList(self):
         d = np.zeros((self.numJobs, self.NUM_RACKS, self.NUM_RACKS))
         for k in range(self.numJobs):
@@ -124,9 +110,41 @@ class TraceProducer:
                     lj[k,j] += d[k,i,j]
                 coflowO.append(lj[k,j])
             
-            coflowlist.append([coflowI, coflowO, self.jobs.elementAt(k)])
-    
+            coflowlist.append([coflowI, coflowO, self.jobs.elementAt(k), k])
+            
         return li, lj, coflowlist
+    
+    def produceCoflowSet(self, coflowlist):
+        K = []
+        S = []
+        
+        for k in coflowlist:
+            K.append(k)
+        
+        S.append([])
+        
+        for k in K:
+            temp_S = S.copy()
+            for t in temp_S:
+                temp_t = t.copy()
+                temp_t.append(k)
+                S.append(temp_t)
+        
+        return S
+        
+    def obtainJobWeight(self):
+        w = []
+        for i in range(self.jobs.size()):
+            w.append(self.jobs.elementAt(i).getWeight())
+        
+        return w
+    
+    def obtainJobReleaseTime(self):
+        r = []
+        for i in range(self.jobs.size()):
+            r.append(self.jobs.elementAt(i).getReleaseTime())
+        
+        return r
     
     def calculateTotalWeightedCompletionTime(self):
         total = 0
@@ -288,9 +306,12 @@ Characteristics of the generated trace:
 '''
 
 class CoflowBenchmarkTraceProducer(TraceProducer):
-    def __init__(self, pathToCoflowBenchmarkTraceFile):
+    def __init__(self, pathToCoflowBenchmarkTraceFile, randomSeed):
         super().__init__(None, None)
         self.pathToCoflowBenchmarkTraceFile = pathToCoflowBenchmarkTraceFile
+        
+        self.randomSeed = randomSeed
+        random.seed(self.randomSeed)
         
     def prepareTrace(self):
         f = None

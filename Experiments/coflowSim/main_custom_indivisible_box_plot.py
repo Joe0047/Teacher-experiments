@@ -1,40 +1,44 @@
 from gurobipy import *
 from traceProducer.traceProducer import *
+from traceProducer.jobClassDescription import *
 from datastructures.jobCollection import *
 from simulator.simulator import *
 from utils.utils import *
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
+import pandas as pd
 
-thresNumOfFlows = []
 CDLS = []
 
-curThresNumFlows = 10
-lastThresNumFlows = 30
-stepThresSize = 5
-
-upperBoundOfJob = 14
-randomSeed = 13
-
-while(curThresNumFlows <= lastThresNumFlows):
-    pathToCoflowBenchmarkTraceFile = "./coflow-benchmark-master/FB2010-1Hr-150-0.txt"
-    tr = CoflowBenchmarkTraceProducer(pathToCoflowBenchmarkTraceFile, randomSeed)
+rseed = 13
+turn = 100
+    
+while(turn > 0):
+    print(turn)
+    numRacks = 4
+    numJobs = 8
+    randomSeed = rseed
+    
+    jobClassDescs = [JobClassDescription(1, 4, 1, 10),
+                     JobClassDescription(1, 4, 10, 1000),
+                     JobClassDescription(4, numRacks, 1, 10),
+                     JobClassDescription(4, numRacks, 10, 1000)]
+    
+    fracsOfClasses = [41,
+                      29,
+                      9,
+                      21]
+    
+    tr = CustomTraceProducer(numRacks, numJobs, jobClassDescs, fracsOfClasses, randomSeed)
     tr.prepareTrace()
     
     sim = Simulator(tr)
-    
-    print(curThresNumFlows)
-    tr.filterJobsByNumFlows(curThresNumFlows, upperBoundOfJob)
-    thresNumOfFlows.append(curThresNumFlows)
     
     K = tr.getNumJobs()
     N = tr.getNumRacks()
     I = N
     J = N
     M = 10
-    
-    print(K)
     
     li, lj, coflowlist = tr.produceCoflowSizeAndList()
     
@@ -119,11 +123,12 @@ while(curThresNumFlows <= lastThresNumFlows):
     
     CDLS.append(value_CDLS / mod.objVal)
     
-    curThresNumFlows += stepThresSize
+    rseed += 1
+    turn -= 1
 
 algo = {'CDLS': CDLS}
 
-file = open('../result/benchmark_indivisible/benchmark_indivisible.txt','w')
+file = open('../result/custom_indivisible_box_plot/custom_indivisible_box_plot.txt','w')
 for key, values in algo.items():
     file.write(key + ' ' + str(len(values)))
     
@@ -132,19 +137,22 @@ for key, values in algo.items():
         
     file.write('\n')
 
+pd_CDLS = pd.Series(CDLS)
+file.write('Q1,Q2,Q3,mean ' + str(4) + ' ' + str(pd_CDLS.quantile(0.25)) + ' ' + str(pd_CDLS.quantile(0.5)) + ' ' + str(pd_CDLS.quantile(0.75)) + ' ' + str(pd_CDLS.mean()) + '\n')
+
 file.close()
 
 # 設定圖片大小為長15、寬10
 
-plt.figure(figsize=(15,10),dpi=100,linewidth = 2)
+fig, ax = plt.subplots(figsize=(15,10))
 
+ax.boxplot(algo.values())
 
-plt.plot(thresNumOfFlows,CDLS,'s-',color = 'r', label="CDLS")
-
+ax.set_xticklabels(algo.keys())
 
 # 設定圖片標題，以及指定字型設定，x代表與圖案最左側的距離，y代表與圖片的距離
 
-plt.title("Indivisible coflows from benchmark", size=40, x=0.5, y=1.03)
+plt.title("Indivisible coflows from custom", size=40, x=0.5, y=1.03)
 
 # 設置刻度字體大小
 
@@ -154,19 +162,9 @@ plt.yticks(fontsize=20)
 
 # 標示x軸(labelpad代表與圖片的距離)
 
-plt.xlabel("Threshold of the number of flows", fontsize=30, labelpad = 15)
-
-# x軸只顯示整數刻度
-plt.gca().xaxis.set_major_locator(MaxNLocator(integer = True))
+plt.xlabel("Algorithms", fontsize=30, labelpad = 15)
 
 # 標示y軸(labelpad代表與圖片的距離)
 
 plt.ylabel("Approximation ratio", fontsize=30, labelpad = 20)
 
-# 顯示出線條標記位置
-
-plt.legend(loc = "best", fontsize=20)
-
-# 畫出圖片
-
-plt.show()

@@ -20,3 +20,29 @@ class Utils:
         for f in flowlist:
             total += f[0] * f[0]
         return total
+    
+    @staticmethod
+    def sumCoflowSetSquare(coflowlist, port, n):
+        total = 0
+        if port == "i":
+            for k in coflowlist:
+                total += k[0][n]
+        
+        elif port == "j":
+            for k in coflowlist:
+                total += k[1][n]
+        
+        return total * total
+    
+    @staticmethod
+    def sumCoflowSquareSet(coflowlist, port, n):
+        total = 0
+        if port == "i":
+            for k in coflowlist:
+                total += k[0][n] * k[0][n]
+                
+        elif port == "j":
+            for k in coflowlist:
+                total += k[1][n] * k[1][n]
+        
+        return total

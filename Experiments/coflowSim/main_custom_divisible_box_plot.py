@@ -72,7 +72,6 @@ while(turn > 0):
     for i in range(I):
         for s in Si[i]:
             mod.addConstr(quicksum(d[f[4],f[1],f[2]] * Cf[f[4],f[1],f[2]] for f in s) >= (Utils.sumFlowSetSquare(s) + Utils.sumFlowSquareSet(s)) / (2*M))
-                
         
     for j in range(J):
         for s in Sj[j]:
