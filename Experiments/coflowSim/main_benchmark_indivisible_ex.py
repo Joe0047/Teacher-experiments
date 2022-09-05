@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 thresNumOfFlows = []
-CDLS = []
+FDLS = []
+Weaver = []
 
 curThresNumFlows = 10
 lastThresNumFlows = 30
@@ -68,62 +69,124 @@ while(curThresNumFlows <= lastThresNumFlows):
     for j in range(J):
         for s in S:
             mod.addConstr(quicksum(lj[k[3],j] * C[k[3]] for k in s) >= (Utils.sumCoflowSquareSet(s,"j",j) + Utils.sumCoflowSetSquare(s,"j",j)) / (2*M))
-                
+            
     mod.optimize()
         
     EPOCH_IN_MILLIS = Constants.SIMULATION_QUANTA
     
-    for k in coflowlist:
-        k[3] = C[k[3]].X
+    flowlist = tr.turnCoflowListToFlowList(coflowlist)
     
-    # CDLS
+    for f in flowlist:
+        f[4] = C[f[4]].X
+    
+    # FDLS
     loadI = np.zeros((M,I))
     loadO = np.zeros((M,J))
     A = [[] for h in range(M)]
     
-    for k in coflowlist:
+    flowlist.sort(key = lambda f: f[4])
+    
+    for f in flowlist:
         h_star = -1
         minload = float("inf")
         for h in range(M):
-            maxload = float("-inf")
-            for i in range(I):
-                for j in range(J):
-                    if loadI[h][i] + loadO[h][j] + k[0][i] + k[1][j] > maxload:
-                        maxload = loadI[h][i] + loadO[h][j] + k[0][i] + k[1][j]
-            if maxload < minload:
+            if loadI[h][f[1]] + loadO[h][f[2]] < minload:
                 h_star = h
-                minload = maxload
+                minload = loadI[h][f[1]] + loadO[h][f[2]]
                 
-        for t in k[2].tasks:
-            if t.taskType != TaskType.REDUCER:
-                continue
-            
-            for f in t.flows:
-                A[h_star].append([f, k[3]])
-                
-        for i in range(I):
-            loadI[h_star][i] += k[0][i]
-        for j in range(J):
-            loadO[h_star][j] += k[1][j]
+        A[h_star].append([f[3], f[4]])
+        loadI[h_star][f[1]] += f[0]
+        loadO[h_star][f[2]] += f[0]
     
     for h in range(M):
         sim.simulate(A[h], EPOCH_IN_MILLIS)
     
-    value_CDLS = tr.calculateTotalWeightedCompletionTime()
+    value_FDLS = tr.calculateTotalWeightedCompletionTime()
     
     print("========================================================")
     print('OPT: %f' % mod.objVal)
-    print('CDLS: %f' % value_CDLS)
-    print(value_CDLS / mod.objVal)
+    print('FDLS: %f' % value_FDLS)
+    print(value_FDLS / mod.objVal)
     print("========================================================")
     
-    CDLS.append(value_CDLS / mod.objVal)
+    FDLS.append(value_FDLS / mod.objVal)
+    
+    # Initialize the finished time of job and the remaining bytes of flows
+    tr.initJobFinishedTimeAndFlowRemainingBytes()
+    
+    # Weaver
+    loadI = np.zeros((M,I))
+    loadO = np.zeros((M,J))
+    L_add = [0 for h in range(M)]
+    L = [0 for h in range(M)]
+    A = [[] for h in range(M)]
+    
+    flowlist.sort(key = lambda f: f[0], reverse = True)
+    
+    for f in flowlist:
+        h_star = -1
+        minload = float("inf")
+        
+        for h in range(M):
+            loadI[h][f[1]] += f[0]
+            loadO[h][f[2]] += f[0]
+            
+            if loadI[h][f[1]] > L_add[h]:
+                L_add[h] = loadI[h][f[1]]
+            if loadO[h][f[2]] > L_add[h]:
+                L_add[h] = loadO[h][f[2]]
+            
+            loadI[h][f[1]] -= f[0]
+            loadO[h][f[2]] -= f[0]
+            
+            if (L_add[h] > L[h]) and (L_add[h] < minload):
+                h_star = h
+                minload = L_add[h]
+        
+        if h_star == -1:
+            minload = float("inf")
+            for h in range(M):
+                loadI[h][f[1]] += f[0]
+                loadO[h][f[2]] += f[0]
+                
+                maxload = max(loadI[h][f[1]], loadO[h][f[2]])
+                
+                loadI[h][f[1]] -= f[0]
+                loadO[h][f[2]] -= f[0]
+                
+                if maxload < minload:
+                    h_star = h
+                    minload = maxload
+        
+        A[h_star].append([f[3], f[4]])
+        loadI[h_star][f[1]] += f[0]
+        loadO[h_star][f[2]] += f[0]
+        
+        if loadI[h_star][f[1]] > L[h_star]:
+            L[h_star] = loadI[h_star][f[1]]
+        if loadO[h_star][f[2]] > L[h_star]:
+            L[h_star] = loadO[h_star][f[2]]
+        
+        L_add = L.copy()
+    
+    for h in range(M):
+        sim.simulate(A[h], EPOCH_IN_MILLIS)
+    
+    value_Weaver = tr.calculateTotalWeightedCompletionTime()
+            
+    print("========================================================")
+    print('OPT: %f' % mod.objVal)
+    print('Weaver: %f' % value_Weaver)
+    print(value_Weaver / mod.objVal)
+    print("========================================================")
+    
+    Weaver.append(value_Weaver / mod.objVal)
     
     curThresNumFlows += stepThresSize
 
-algo = {'CDLS': CDLS}
+algo = {'FDLS': FDLS, 'Weaver': Weaver}
 
-file = open('../result/benchmark_indivisible/benchmark_indivisible.txt','w')
+file = open('../result/benchmark_indivisible_ex/benchmark_indivisible_ex.txt','w')
 for key, values in algo.items():
     file.write(key + ' ' + str(len(values)))
     
@@ -139,7 +202,10 @@ file.close()
 plt.figure(figsize=(15,10),dpi=100,linewidth = 2)
 
 
-plt.plot(thresNumOfFlows,CDLS,'s-',color = 'r', label="CDLS")
+plt.plot(thresNumOfFlows,FDLS,'o-',color = 'g', label="FDLS")
+
+
+plt.plot(thresNumOfFlows,Weaver,'^-',color = 'b', label="Weaver")
 
 
 # 設定圖片標題，以及指定字型設定，x代表與圖案最左側的距離，y代表與圖片的距離

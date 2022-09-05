@@ -131,7 +131,25 @@ class TraceProducer:
                 S.append(temp_t)
         
         return S
+    
+    def turnCoflowListToFlowList(self, coflowlist):
+        d = np.zeros((self.numJobs, self.NUM_RACKS, self.NUM_RACKS))
+        flowlist = []
+        for k in coflowlist:
+            for t in k[2].tasks:
+                if t.taskType != TaskType.REDUCER:
+                    continue
+                
+                for f in t.flows:
+                    # Convert machine to rack. (Subtracting because machine IDs start from 1)
+                    i = f.getMapper().getPlacement() - 1
+                    j = f.getReducer().getPlacement() - 1
+                    
+                    d[k[3],i,j] = f.getFlowSize() / 1048576.0 * Constants.SIMULATION_QUANTA
+                    flowlist.append([d[k[3],i,j], i, j, f, k[3]])
         
+        return flowlist
+    
     def obtainJobWeight(self):
         w = []
         for i in range(self.jobs.size()):

@@ -9,8 +9,10 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 numOfCores = []
-rawCDLS = []
-CDLS = []
+rawFDLS = []
+rawWeaver = []
+FDLS = []
+Weaver = []
 
 curNumCores = 5
 lastNumCores = 25
@@ -21,8 +23,10 @@ while(curNumCores <= lastNumCores):
     
     rseed = 13
     turn = 100
-    listOfTurnsCDLS = []
-    average_CDLS = 0
+    listOfTurnsFDLS = []
+    average_FDLS = 0
+    listOfTurnsWeaver = []
+    average_Weaver = 0
     
     while(turn > 0):
         print(curNumCores)
@@ -89,68 +93,137 @@ while(curNumCores <= lastNumCores):
             
         EPOCH_IN_MILLIS = Constants.SIMULATION_QUANTA
 
-        for k in coflowlist:
-            k[3] = C[k[3]].X
+        flowlist = tr.turnCoflowListToFlowList(coflowlist)
         
-        # CDLS
+        for f in flowlist:
+            f[4] = C[f[4]].X
+        
+        # FDLS
         loadI = np.zeros((M,I))
         loadO = np.zeros((M,J))
         A = [[] for h in range(M)]
         
-        for k in coflowlist:
+        flowlist.sort(key = lambda f: f[4])
+        
+        for f in flowlist:
             h_star = -1
             minload = float("inf")
             for h in range(M):
-                maxload = float("-inf")
-                for i in range(I):
-                    for j in range(J):
-                        if loadI[h][i] + loadO[h][j] + k[0][i] + k[1][j] > maxload:
-                            maxload = loadI[h][i] + loadO[h][j] + k[0][i] + k[1][j]
-                if maxload < minload:
+                if loadI[h][f[1]] + loadO[h][f[2]] < minload:
                     h_star = h
-                    minload = maxload
+                    minload = loadI[h][f[1]] + loadO[h][f[2]]
                     
-            for t in k[2].tasks:
-                if t.taskType != TaskType.REDUCER:
-                    continue
-                
-                for f in t.flows:
-                    A[h_star].append([f, k[3]])
-                    
-            for i in range(I):
-                loadI[h_star][i] += k[0][i]
-            for j in range(J):
-                loadO[h_star][j] += k[1][j]
+            A[h_star].append([f[3], f[4]])
+            loadI[h_star][f[1]] += f[0]
+            loadO[h_star][f[2]] += f[0]
         
         for h in range(M):
             sim.simulate(A[h], EPOCH_IN_MILLIS)
         
-        value_CDLS = tr.calculateTotalWeightedCompletionTime()
+        value_FDLS = tr.calculateTotalWeightedCompletionTime()
         
         print("========================================================")
         print('OPT: %f' % mod.objVal)
-        print('CDLS: %f' % value_CDLS)
-        print(value_CDLS / mod.objVal)
+        print('FDLS: %f' % value_FDLS)
+        print(value_FDLS / mod.objVal)
         print("========================================================")
         
-        listOfTurnsCDLS.append(value_CDLS / mod.objVal)
+        listOfTurnsFDLS.append(value_FDLS / mod.objVal)
+        
+        # Initialize the finished time of job and the remaining bytes of flows
+        tr.initJobFinishedTimeAndFlowRemainingBytes()
+        
+        # Weaver
+        loadI = np.zeros((M,I))
+        loadO = np.zeros((M,J))
+        L_add = [0 for h in range(M)]
+        L = [0 for h in range(M)]
+        A = [[] for h in range(M)]
+        
+        flowlist.sort(key = lambda f: f[0], reverse = True)
+        
+        for f in flowlist:
+            h_star = -1
+            minload = float("inf")
+            
+            for h in range(M):
+                loadI[h][f[1]] += f[0]
+                loadO[h][f[2]] += f[0]
+                
+                if loadI[h][f[1]] > L_add[h]:
+                    L_add[h] = loadI[h][f[1]]
+                if loadO[h][f[2]] > L_add[h]:
+                    L_add[h] = loadO[h][f[2]]
+                
+                loadI[h][f[1]] -= f[0]
+                loadO[h][f[2]] -= f[0]
+                
+                if (L_add[h] > L[h]) and (L_add[h] < minload):
+                    h_star = h
+                    minload = L_add[h]
+            
+            if h_star == -1:
+                minload = float("inf")
+                for h in range(M):
+                    loadI[h][f[1]] += f[0]
+                    loadO[h][f[2]] += f[0]
+                    
+                    maxload = max(loadI[h][f[1]], loadO[h][f[2]])
+                    
+                    loadI[h][f[1]] -= f[0]
+                    loadO[h][f[2]] -= f[0]
+                    
+                    if maxload < minload:
+                        h_star = h
+                        minload = maxload
+            
+            A[h_star].append([f[3], f[4]])
+            loadI[h_star][f[1]] += f[0]
+            loadO[h_star][f[2]] += f[0]
+            
+            if loadI[h_star][f[1]] > L[h_star]:
+                L[h_star] = loadI[h_star][f[1]]
+            if loadO[h_star][f[2]] > L[h_star]:
+                L[h_star] = loadO[h_star][f[2]]
+            
+            L_add = L.copy()
+        
+        for h in range(M):
+            sim.simulate(A[h], EPOCH_IN_MILLIS)
+        
+        value_Weaver = tr.calculateTotalWeightedCompletionTime()
+                
+        print("========================================================")
+        print('OPT: %f' % mod.objVal)
+        print('Weaver: %f' % value_Weaver)
+        print(value_Weaver / mod.objVal)
+        print("========================================================")
+        
+        listOfTurnsWeaver.append(value_Weaver / mod.objVal)
         
         rseed += 1
         turn -= 1
     
-    for c in listOfTurnsCDLS:
-        average_CDLS += c
-    average_CDLS /= len(listOfTurnsCDLS)
-    CDLS.append(average_CDLS)
+    for f in listOfTurnsFDLS:
+        average_FDLS += f
+    average_FDLS /= len(listOfTurnsFDLS)
+    FDLS.append(average_FDLS)
     
-    rawCDLS.append(listOfTurnsCDLS)
+    rawFDLS.append(listOfTurnsFDLS)
+    
+    for w in listOfTurnsWeaver:
+        average_Weaver += w
+    average_Weaver /= len(listOfTurnsWeaver)
+    Weaver.append(average_Weaver)
+    
+    rawWeaver.append(listOfTurnsWeaver)
     
     curNumCores += stepSize
 
-raw = {'rawCDLS': rawCDLS}
-algo = {'CDLS': CDLS}
+raw = {'rawFDLS': rawFDLS, 'rawWeaver': rawWeaver}
+algo = {'FDLS': FDLS, 'Weaver': Weaver}
 
-file = open('../result/custom_indivisible_num_of_core/custom_indivisible_num_of_core.txt','w')
+file = open('../result/custom_indivisible_num_of_core_ex/custom_indivisible_num_of_core_ex.txt','w')
 
 for key, values in raw.items():
     file.write(key + ' ' + str(len(values)))
@@ -177,7 +250,10 @@ file.close()
 plt.figure(figsize=(15,10),dpi=100,linewidth = 2)
 
 
-plt.plot(numOfCores,CDLS,'s-',color = 'r', label="CDLS")
+plt.plot(numOfCores,FDLS,'o-',color = 'g', label="FDLS")
+
+
+plt.plot(numOfCores,Weaver,'^-',color = 'b', label="Weaver")
 
 
 # 設定圖片標題，以及指定字型設定，x代表與圖案最左側的距離，y代表與圖片的距離
