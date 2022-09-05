@@ -82,7 +82,7 @@ while(turn > 0):
     EPOCH_IN_MILLIS = Constants.SIMULATION_QUANTA
     
     for f in flowlist:
-        f[4] = C[f[4]].X
+        f[4] = Cf[f[4],f[1],f[2]].X
     
     # FDLS
     loadI = np.zeros((M,I))
