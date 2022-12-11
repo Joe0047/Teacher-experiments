@@ -152,13 +152,12 @@ while(curNumCores <= lastNumCores):
                 if loadO[h][f[2]]+f[0] > L[h]:
                     flag = 1
                     
-            if flag == 1:        
+            if flag == 1:
                 for h in range(M):
-                    if loadI[h][f[1]]+f[0] < minload and loadO[h][f[2]]+f[0] < minload:
+                    maxload = max(max(loadI[h][f[1]]+f[0], loadO[h][f[2]]+f[0]), L[h])
+                    if maxload < minload:
                         h_star = h
-                        minload = loadI[h][f[1]]+f[0]
-                        if loadI[h][f[1]] < loadO[h][f[2]]:
-                            minload = loadO[h][f[2]]+f[0]
+                        minload = maxload
             
             if h_star == -1:
                 minload = float("inf")
