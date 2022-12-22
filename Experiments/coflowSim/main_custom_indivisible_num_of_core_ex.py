@@ -136,7 +136,6 @@ while(curNumCores <= lastNumCores):
         # Weaver
         loadI = np.zeros((M,I))
         loadO = np.zeros((M,J))
-        L_add = [0 for h in range(M)]
         L = [0 for h in range(M)]
         A = [[] for h in range(M)]
         
@@ -145,22 +144,19 @@ while(curNumCores <= lastNumCores):
         for f in flowlist:
             h_star = -1
             minload = float("inf")
-            
+            flag = -1
             for h in range(M):
-                loadI[h][f[1]] += f[0]
-                loadO[h][f[2]] += f[0]
-                
-                if loadI[h][f[1]] > L_add[h]:
-                    L_add[h] = loadI[h][f[1]]
-                if loadO[h][f[2]] > L_add[h]:
-                    L_add[h] = loadO[h][f[2]]
-                
-                loadI[h][f[1]] -= f[0]
-                loadO[h][f[2]] -= f[0]
-                
-                if (L_add[h] > L[h]) and (L_add[h] < minload):
-                    h_star = h
-                    minload = L_add[h]
+                if loadI[h][f[1]]+f[0] > L[h]:
+                    flag = 1
+                if loadO[h][f[2]]+f[0] > L[h]:
+                    flag = 1
+            
+            if flag == 1:
+                for h in range(M):
+                    maxload = max(max(loadI[h][f[1]]+f[0], loadO[h][f[2]]+f[0]), L[h])
+                    if maxload < minload:
+                        h_star = h
+                        minload = maxload
             
             if h_star == -1:
                 minload = float("inf")
@@ -185,8 +181,6 @@ while(curNumCores <= lastNumCores):
                 L[h_star] = loadI[h_star][f[1]]
             if loadO[h_star][f[2]] > L[h_star]:
                 L[h_star] = loadO[h_star][f[2]]
-            
-            L_add = L.copy()
         
         for h in range(M):
             sim.simulate(A[h], EPOCH_IN_MILLIS)
